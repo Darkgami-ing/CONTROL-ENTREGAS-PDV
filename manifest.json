@@ -1,0 +1,10 @@
+{
+  "name": "Control de Entregas PDV",
+  "short_name": "Entregas PDV",
+  "description": "Registro y validación de entregas con evidencias.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f8fc",
+  "theme_color": "#071733",
+  "lang": "es-PE"
+}
