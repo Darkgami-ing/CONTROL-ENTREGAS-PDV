@@ -265,6 +265,7 @@ function renderShell() {
         <div class="account-box">
           <div class="account-name">${escapeHtml(state.user.username)}</div>
           <div class="account-role">${escapeHtml(roleLabel(state.user.role))}</div>
+          <button class="btn btn-outline btn-block" type="button" data-action="change-password">Cambiar contraseña</button>
           <button class="btn btn-outline btn-block" type="button" data-action="logout">Cerrar sesión</button>
         </div>
       </aside>
@@ -274,7 +275,10 @@ function renderShell() {
             <h1 class="top-title" id="view-title">${escapeHtml(viewTitle())}</h1>
             <p class="top-sub">${escapeHtml(roleLabel(state.user.role))} · ${escapeHtml(state.user.username)}</p>
           </div>
-          <button class="btn btn-icon mobile-menu" type="button" data-action="logout" aria-label="Cerrar sesión">↪</button>
+          <div class="top-actions">
+            <button class="btn btn-icon mobile-menu" type="button" data-action="change-password" aria-label="Cambiar contraseña">🔑</button>
+            <button class="btn btn-icon mobile-menu" type="button" data-action="logout" aria-label="Cerrar sesión">↪</button>
+          </div>
         </header>
         <main class="content" id="content"></main>
       </div>
@@ -661,7 +665,7 @@ function renderUsers() {
         <div class="card-head"><h2 class="card-title">Usuarios visibles</h2><p class="card-copy">${state.users.length} cuenta${state.users.length === 1 ? "" : "s"} según tu nivel de acceso.</p></div>
         <div class="card-body">
           ${state.users.length ? `
-            <div class="table-wrap desktop-users"><table><thead><tr><th>Usuario</th><th>Rol</th><th>PDV</th><th>Encargado</th><th>Estado</th></tr></thead><tbody>${state.users.map(userRow).join("")}</tbody></table></div>
+            <div class="table-wrap desktop-users"><table><thead><tr><th>Usuario</th><th>Rol</th><th>PDV</th><th>Encargado</th><th>Estado / acciones</th></tr></thead><tbody>${state.users.map(userRow).join("")}</tbody></table></div>
             <div class="mobile-users">${state.users.map(userCard).join("")}</div>` : emptyInline("Crea la primera cuenta subordinada.")}
         </div>
       </article>
@@ -707,14 +711,21 @@ function userStatusControl(user) {
   return `<select class="select status-select" data-user-status="${escapeHtml(user.id)}" aria-label="Estado de ${escapeHtml(user.username)}">${option("ACTIVO", "Activo", user.status)}${option("INACTIVO", "Inactivo", user.status)}</select>`;
 }
 
+function userActions(user) {
+  const reset = canManageUser(user)
+    ? `<button class="btn btn-icon" type="button" data-reset-password="${escapeHtml(user.id)}" aria-label="Restablecer contraseña de ${escapeHtml(user.username)}" title="Restablecer contraseña">🔑</button>`
+    : "";
+  return `<div class="user-actions">${userStatusControl(user)}${reset}</div>`;
+}
+
 function userRow(user) {
-  return `<tr><td><b>${escapeHtml(user.username)}</b><div class="meta">Creado: ${formatDate(user.createdAt)}</div></td><td>${escapeHtml(roleLabel(user.role))}</td><td>${escapeHtml(user.pdvUsername || "—")}</td><td>${escapeHtml(user.managerUsername || "—")}</td><td>${userStatusControl(user)}</td></tr>`;
+  return `<tr><td><b>${escapeHtml(user.username)}</b><div class="meta">Creado: ${formatDate(user.createdAt)}</div></td><td>${escapeHtml(roleLabel(user.role))}</td><td>${escapeHtml(user.pdvUsername || "—")}</td><td>${escapeHtml(user.managerUsername || "—")}</td><td>${userActions(user)}</td></tr>`;
 }
 
 function userCard(user) {
   return `
     <article class="user-card">
-      <div class="user-top"><div><b>${escapeHtml(user.username)}</b><div class="meta">${escapeHtml(roleLabel(user.role))}</div></div>${userStatusControl(user)}</div>
+      <div class="user-top"><div><b>${escapeHtml(user.username)}</b><div class="meta">${escapeHtml(roleLabel(user.role))}</div></div>${userActions(user)}</div>
       <div class="user-grid"><div><small>PDV</small><b>${escapeHtml(user.pdvUsername || "—")}</b></div><div><small>Encargado</small><b>${escapeHtml(user.managerUsername || "—")}</b></div></div>
     </article>`;
 }
@@ -734,6 +745,68 @@ async function submitUser(form) {
     await api("createUser", payload);
     showToast("Cuenta creada correctamente.", "success");
     await loadData({ silent: true });
+  } catch (error) {
+    showToast(error.message, "error");
+    setBusy(button, false);
+  }
+}
+
+function openChangePasswordModal() {
+  openModal("Cambiar mi contraseña", `
+    <form id="change-password-form">
+      <div class="field"><label for="current-password">Contraseña actual</label><input class="input" id="current-password" name="currentPassword" type="password" autocomplete="current-password" required></div>
+      <div class="field"><label for="new-password-self">Nueva contraseña</label><input class="input" id="new-password-self" name="newPassword" type="password" minlength="8" maxlength="100" autocomplete="new-password" required><p class="helper">Mínimo 8 caracteres y debe ser diferente de la actual.</p></div>
+      <div class="field"><label for="confirm-password-self">Confirmar nueva contraseña</label><input class="input" id="confirm-password-self" name="confirmPassword" type="password" minlength="8" maxlength="100" autocomplete="new-password" required></div>
+      <button class="btn btn-primary btn-block" type="submit">Actualizar contraseña</button>
+    </form>`);
+  document.querySelector("#current-password")?.focus();
+}
+
+function openResetPasswordModal(user) {
+  openModal(`Restablecer contraseña: ${user.username}`, `
+    <form id="reset-password-form" data-user-id="${escapeHtml(user.id)}">
+      <p class="auth-copy" style="margin-top:0">La cuenta cerrará todas sus sesiones y deberá ingresar con la nueva contraseña.</p>
+      <div class="field"><label for="reset-password">Nueva contraseña</label><input class="input" id="reset-password" name="newPassword" type="password" minlength="8" maxlength="100" autocomplete="new-password" required></div>
+      <div class="field"><label for="reset-confirm">Confirmar contraseña</label><input class="input" id="reset-confirm" name="confirmPassword" type="password" minlength="8" maxlength="100" autocomplete="new-password" required></div>
+      <button class="btn btn-primary btn-block" type="submit">Restablecer contraseña</button>
+    </form>`);
+  document.querySelector("#reset-password")?.focus();
+}
+
+async function submitChangePassword(form) {
+  const data = new FormData(form);
+  const currentPassword = String(data.get("currentPassword") || "");
+  const newPassword = String(data.get("newPassword") || "");
+  if (newPassword !== String(data.get("confirmPassword") || "")) {
+    showToast("Las nuevas contraseñas no coinciden.", "error");
+    return;
+  }
+  const button = form.querySelector("button[type='submit']");
+  setBusy(button, true, "Actualizando…");
+  try {
+    const result = await api("changePassword", { currentPassword, newPassword });
+    setToken(result.token);
+    await closeModal();
+    showToast("Contraseña actualizada. Las sesiones anteriores fueron cerradas.", "success");
+  } catch (error) {
+    showToast(error.message, "error");
+    setBusy(button, false);
+  }
+}
+
+async function submitResetPassword(form) {
+  const data = new FormData(form);
+  const newPassword = String(data.get("newPassword") || "");
+  if (newPassword !== String(data.get("confirmPassword") || "")) {
+    showToast("Las contraseñas no coinciden.", "error");
+    return;
+  }
+  const button = form.querySelector("button[type='submit']");
+  setBusy(button, true, "Restableciendo…");
+  try {
+    await api("resetUserPassword", { id: form.dataset.userId, newPassword });
+    await closeModal();
+    showToast("Contraseña restablecida y sesiones anteriores cerradas.", "success");
   } catch (error) {
     showToast(error.message, "error");
     setBusy(button, false);
@@ -863,6 +936,8 @@ document.addEventListener("submit", async (event) => {
   else if (event.target.id === "login-form") await submitAuth(event.target, false);
   else if (event.target.id === "record-form") await submitRecord(event.target);
   else if (event.target.id === "user-form") await submitUser(event.target);
+  else if (event.target.id === "change-password-form") await submitChangePassword(event.target);
+  else if (event.target.id === "reset-password-form") await submitResetPassword(event.target);
 });
 
 document.addEventListener("click", async (event) => {
@@ -907,12 +982,20 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const resetPasswordButton = event.target.closest("[data-reset-password]");
+  if (resetPasswordButton) {
+    const user = state.users.find((item) => item.id === resetPasswordButton.dataset.resetPassword);
+    if (user && canManageUser(user)) openResetPasswordModal(user);
+    return;
+  }
+
   const actionButton = event.target.closest("[data-action]");
   if (!actionButton) return;
   const action = actionButton.dataset.action;
   if (action === "retry") await boot();
   else if (action === "reload") await loadData();
   else if (action === "logout") await logout();
+  else if (action === "change-password") openChangePasswordModal();
   else if (action === "scan") await openScanner();
   else if (action === "camera") document.querySelector("#camera-input")?.click();
   else if (action === "gallery") document.querySelector("#gallery-input")?.click();
@@ -952,6 +1035,14 @@ document.addEventListener("input", (event) => {
     if (count) count.textContent = String(event.target.value.length);
   } else if (event.target.id === "guide-code") {
     event.target.value = event.target.value.toUpperCase();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.target.id === "guide-code" && event.key === "Enter") {
+    event.preventDefault();
+    event.target.value = event.target.value.trim().toUpperCase();
+    showToast("Código de guía capturado.", "success");
   }
 });
 
