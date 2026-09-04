@@ -17,3 +17,8 @@ Los identificadores internos del Sheet y de la carpeta de evidencias permanecen
 
 Las contraseñas y fotografías no se guardan en GitHub. Las contraseñas se
 almacenan como hash con sal y las fotografías permanecen en Google Drive.
+
+Cada usuario puede cambiar su propia contraseña. Además, el administrador
+puede restablecer cualquier cuenta, el encargado las cuentas de sus PDV y el
+PDV las cuentas de sus repartidores. Un cambio o restablecimiento invalida las
+sesiones anteriores de la cuenta afectada.
